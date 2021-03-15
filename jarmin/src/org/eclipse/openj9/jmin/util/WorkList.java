@@ -136,6 +136,9 @@ public class WorkList {
 
     private void handleClass(String c) {
         if (!info.isClassReferenced(c)) {
+            if (c.equals("com/ibm/tx/jta/util/TxBundleTools")) {
+                System.out.println("WorkList.handleClass> " + c);
+            }
             info.addClass(c).setReferenced();
             if (info.getClassInfo(c).hasMethod("<clinit>", "()V")
                 && !info.getClassInfo(c).isMethodReferenced("<clinit>", "()V")) {
@@ -217,9 +220,17 @@ public class WorkList {
     }
 
     public void processVirtualMethod(String clazz, String name, String desc) {
+        boolean trace = false;
+        if (clazz.equals("com.ibm.ws.kernel.boot.jmx.internal.PlatformMBeanServerBuilder".replace('.', '/'))
+                && name.equals("newMBeanServer")) {
+            trace = true;
+        }
         processMethod(clazz, name, desc);
         if (context.getSubClasses(clazz) != null) {
             for (String c : context.getSubClasses(clazz)) {
+                if (trace) {
+                    System.out.println("processVirtualMethod> " + c + "." + name + desc);
+                }
                 if ((Config.inclusionMode == Config.INCLUSION_MODE_REFERENCE && info.isClassReferenced(c))
                     || (Config.inclusionMode == Config.INCLUSION_MODE_INSTANTIATE && info.isClassInstantiated(c))) {
                     processMethod(c, name, desc);
@@ -229,8 +240,15 @@ public class WorkList {
     }
 
     public void processInterfaceMethod(String clazz, String name, String desc) {
+        boolean trace = false;
+        if (clazz.equals("java/security/PrivilegedAction") && name.equals("run")) {
+            trace = true;
+        }
         processMethod(clazz, name, desc);
         for (String i : context.getInterfaceImplementors(clazz)) {
+            if (trace) {
+                //System.out.println("processInterfaceMethod> " + i + "." + name + desc);
+            }
             if ((Config.inclusionMode == Config.INCLUSION_MODE_REFERENCE && info.isClassReferenced(i))
                 || (Config.inclusionMode == Config.INCLUSION_MODE_INSTANTIATE && info.isClassInstantiated(i))) {
                 processMethod(i, name, desc);

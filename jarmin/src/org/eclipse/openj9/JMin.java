@@ -44,6 +44,8 @@ import org.eclipse.openj9.jmin.WorkItem;
 import org.eclipse.openj9.jmin.analysis.ReferenceAnalyzer;
 import org.eclipse.openj9.jmin.info.*;
 import org.eclipse.openj9.jmin.methodsummary.Summarizer;
+import org.eclipse.openj9.jmin.plugins.EquinoxHookPreProcessor;
+import org.eclipse.openj9.jmin.plugins.OsgiSCRXmlFileProcessor;
 import org.eclipse.openj9.jmin.util.Config;
 import org.eclipse.openj9.jmin.util.HierarchyContext;
 import org.eclipse.openj9.jmin.util.WorkList;
@@ -93,13 +95,16 @@ public class JMin {
         "java/lang/reflect/Constructor"
     };
     private static Class<?>[] preprocessorClasses = new Class[] {
+        org.eclipse.openj9.jmin.plugins.JrePreProcessor.class,
         org.eclipse.openj9.jmin.plugins.QuarkusPreProcessor.class,
         org.eclipse.openj9.jmin.plugins.CaffeinePreProcessor.class,
         org.eclipse.openj9.jmin.plugins.HibernatePreProcessor.class,
         org.eclipse.openj9.jmin.plugins.ArjunaPreProcessor.class,
         org.eclipse.openj9.jmin.plugins.OsgiPreProcessor.class,
         org.eclipse.openj9.jmin.plugins.EclipseJettyPreProcessor.class,
-        org.eclipse.openj9.jmin.plugins.ApacheCXFPreProcessor.class
+        org.eclipse.openj9.jmin.plugins.ApacheCXFPreProcessor.class,
+        org.eclipse.openj9.jmin.plugins.OpenLibertyPreProcessor.class,
+        org.eclipse.openj9.jmin.plugins.EquinoxHookPreProcessor.class
     };
 
     private static Class<?>[] processorClasses = new Class<?>[] {
@@ -151,6 +156,10 @@ public class JMin {
         while (ze != null) {
             String entryName = ze.getName();
             if (entryName.endsWith(".class") && !entryName.endsWith("module-info.class")) {
+                //System.out.println("processJarFile> " + entryName);
+                if (entryName.equals("com/ibm/ws/http/internal/inbound/HttpInboundChannelFactory.class")) {
+                    System.out.println("processJarFile> " + entryName);
+                }
                 ClassReader cr = new ClassReader(jin);
                 cr.accept(ReferenceAnalyzer.getReferenceInfoProcessor(new ClassSource(jar, entryName), info, context), ClassReader.SKIP_DEBUG);
             } else if (!ze.isDirectory() && entryName.startsWith("META-INF/services/") && !entryName.endsWith(".class")) {
@@ -345,8 +354,16 @@ public class JMin {
                 JarInputStream innerJarIStream = new JarInputStream(jin);
                 runProcessorsForJar(jar + "!/" + entryName, innerJarIStream);
                 // do not close innerJarIStream here as it would close backing stream as well.
+            } else if (entryName.endsWith(".xml") && entryName.contains("OSGI-INF")) {
+                OsgiSCRXmlFileProcessor fileProcessor = new OsgiSCRXmlFileProcessor(worklist, info, entryName, jin);
+                fileProcessor.process();
             }
             ze = jin.getNextEntry();
+        }
+        String className = jin.getManifest().getMainAttributes().getValue("Main-Class");
+        if (className != null) {
+            System.out.println("Found Main-Class in mainfest of " + jar + ": " + className);
+            worklist.instantiateClass(className.replace('.', '/'));
         }
     }
 
@@ -379,6 +396,10 @@ public class JMin {
             return;
         }
         minfo.setProcessed();
+
+        if (minfo.clazz().equals("javax/management/MBeanServerFactory") && minfo.name().equals("newMBeanServer")) {
+            System.out.println("Processing method " + minfo.clazz() + "." + minfo.name());
+        }
 
         for (FieldSite field : minfo.getReferencedFields()) {
             if (field.desc.charAt(0) == 'L') {

@@ -140,6 +140,12 @@ public class ReferenceAnalyzer {
     private static void processMethod(String owner, MethodNode mn, ReferenceInfo info, HierarchyContext context, ClassSource classSource) throws AnalyzerException {
         ClassInfo cinfo = info.getClassInfo(owner);
         MethodInfo minfo = cinfo.addMethod(mn.name, mn.desc);
+        /*if (owner.equals("org/glassfish/json/JsonProviderImpl")) {
+            System.out.println("Processing method " + owner + "." + mn.name + mn.desc);
+        }*/
+        if (owner.equals("com/ibm/ws/http/internal/inbound/HttpInboundChannelFactory")) {
+            System.out.println("Processing method " + minfo.clazz() + "." + minfo.name());
+        }
         for (Type t : Type.getArgumentTypes(mn.desc)) {
             if (t.getSort() == Type.OBJECT) {
                 minfo.addReferencedClass(t.getInternalName());
